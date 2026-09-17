@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Pharmacy FEFO Manager</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/style.css"
+    >
+</head>
+
+<body>
+
+    <header>
+        <h1>💊 Pharmacy FEFO Manager</h1>
+
+        <p>
+            First-Expiry-First-Out inventory management
+        </p>
+    </header>
+
+    <main>
+
+        <section class="hero">
+
+            <h2>
+                Safe medicine inventory, batch by batch.
+            </h2>
+
+            <p>
+                Track medicine batches, monitor expiry dates,
+                and ensure the earliest valid batch is always
+                dispensed first.
+            </p>
+
+            <button onclick="checkAPI()">
+                Check API
+            </button>
+
+            <p id="api-status"></p>
+
+        </section>
+
+    </main>
+
+    <script src="/static/js/app.js"></script>
+
+</body>
+</html>
