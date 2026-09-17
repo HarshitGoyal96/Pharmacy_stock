@@ -14,38 +14,421 @@
 
 <body>
 
-    <header>
-        <h1>💊 Pharmacy FEFO Manager</h1>
+    <!-- LOGIN SECTION -->
+    <section id="auth-section" class="auth-container">
 
-        <p>
-            First-Expiry-First-Out inventory management
-        </p>
-    </header>
+        <div class="auth-card">
 
-    <main>
+            <h1>💊 Pharmacy FEFO</h1>
 
-        <section class="hero">
-
-            <h2>
-                Safe medicine inventory, batch by batch.
-            </h2>
-
-            <p>
-                Track medicine batches, monitor expiry dates,
-                and ensure the earliest valid batch is always
-                dispensed first.
+            <p class="subtitle">
+                First-Expiry-First-Out Inventory Management
             </p>
 
-            <button onclick="checkAPI()">
-                Check API
+            <div class="tabs">
+                <button
+                    id="login-tab"
+                    class="tab active"
+                    onclick="showLogin()"
+                >
+                    Login
+                </button>
+
+                <button
+                    id="register-tab"
+                    class="tab"
+                    onclick="showRegister()"
+                >
+                    Register
+                </button>
+            </div>
+
+            <!-- LOGIN -->
+
+            <form id="login-form">
+
+                <input
+                    type="email"
+                    id="login-email"
+                    placeholder="Email"
+                    required
+                >
+
+                <input
+                    type="password"
+                    id="login-password"
+                    placeholder="Password"
+                    required
+                >
+
+                <button type="submit">
+                    Login
+                </button>
+
+            </form>
+
+
+            <!-- REGISTER -->
+
+            <form id="register-form" style="display:none;">
+
+                <input
+                    type="text"
+                    id="register-name"
+                    placeholder="Full Name"
+                    required
+                >
+
+                <input
+                    type="email"
+                    id="register-email"
+                    placeholder="Email"
+                    required
+                >
+
+                <input
+                    type="password"
+                    id="register-password"
+                    placeholder="Password"
+                    required
+                >
+
+                <button type="submit">
+                    Create Account
+                </button>
+
+            </form>
+
+            <p id="auth-message"></p>
+
+        </div>
+
+    </section>
+
+
+    <!-- DASHBOARD -->
+
+    <section id="dashboard" style="display:none;">
+
+        <header class="navbar">
+
+            <div>
+                <h1>💊 Pharmacy FEFO Manager</h1>
+                <p id="welcome-user"></p>
+            </div>
+
+            <button onclick="logout()">
+                Logout
             </button>
 
-            <p id="api-status"></p>
+        </header>
 
-        </section>
 
-    </main>
+        <main class="dashboard-container">
 
+
+            <!-- ALERTS -->
+
+            <div class="section-card alert-card">
+
+                <div class="section-header">
+
+                    <div>
+                        <h2>🚨 Expiry Alerts</h2>
+
+                        <p>
+                            Batches expiring within 30 days
+                        </p>
+                    </div>
+
+                    <button onclick="loadAlerts()">
+                        Refresh
+                    </button>
+
+                </div>
+
+                <div id="alerts-container">
+                    Loading alerts...
+                </div>
+
+            </div>
+
+
+            <!-- MEDICINES -->
+
+            <div class="section-card">
+
+                <div class="section-header">
+
+                    <div>
+                        <h2>💊 Medicines</h2>
+
+                        <p>
+                            Search and manage pharmacy stock
+                        </p>
+
+                    </div>
+
+                    <button onclick="openMedicineForm()">
+                        + Add Medicine
+                    </button>
+
+                </div>
+
+
+                <!-- SEARCH / SORT -->
+
+                <div class="controls">
+
+                    <input
+                        type="text"
+                        id="search-input"
+                        placeholder="Search medicine..."
+                        oninput="loadMedicines()"
+                    >
+
+                    <select
+                        id="sort-by"
+                        onchange="loadMedicines()"
+                    >
+                        <option value="name">
+                            Sort by Name
+                        </option>
+
+                        <option value="stock">
+                            Sort by Stock
+                        </option>
+                    </select>
+
+                    <select
+                        id="sort-order"
+                        onchange="loadMedicines()"
+                    >
+                        <option value="asc">
+                            Ascending
+                        </option>
+
+                        <option value="desc">
+                            Descending
+                        </option>
+                    </select>
+
+                </div>
+
+
+                <!-- MEDICINE TABLE -->
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>ID</th>
+                                <th>Medicine</th>
+                                <th>Generic Name</th>
+                                <th>Manufacturer</th>
+                                <th>Sellable Stock</th>
+                                <th>Actions</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="medicine-table">
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <!-- PAGINATION -->
+
+                <div class="pagination">
+
+                    <button
+                        onclick="previousPage()"
+                    >
+                        ← Previous
+                    </button>
+
+                    <span id="page-info">
+                        Page 1
+                    </span>
+
+                    <button
+                        onclick="nextPage()"
+                    >
+                        Next →
+                    </button>
+
+                </div>
+
+            </div>
+
+
+        </main>
+
+    </section>
+
+
+    <!-- MEDICINE MODAL -->
+
+    <div
+        id="medicine-modal"
+        class="modal"
+        style="display:none;"
+    >
+
+        <div class="modal-content">
+
+            <span
+                class="close"
+                onclick="closeMedicineForm()"
+            >
+                &times;
+            </span>
+
+            <h2>Add Medicine</h2>
+
+            <form id="medicine-form">
+
+                <input
+                    type="text"
+                    id="medicine-name"
+                    placeholder="Medicine name"
+                    required
+                >
+
+                <input
+                    type="text"
+                    id="generic-name"
+                    placeholder="Generic name"
+                >
+
+                <input
+                    type="text"
+                    id="manufacturer"
+                    placeholder="Manufacturer"
+                >
+
+                <button type="submit">
+                    Add Medicine
+                </button>
+
+            </form>
+
+            <p id="medicine-message"></p>
+
+        </div>
+
+    </div>
+
+<!-- BATCH MODAL -->
+
+<div
+    id="batch-modal"
+    class="modal"
+    style="display:none;"
+>
+
+    <div class="modal-content">
+
+        <span
+            class="close"
+            onclick="closeBatchForm()"
+        >
+            &times;
+        </span>
+
+        <h2>Add Batch</h2>
+
+        <p id="batch-medicine-name"></p>
+
+        <form id="batch-form">
+
+            <input
+                type="text"
+                id="batch-number"
+                placeholder="Batch number"
+                required
+            >
+
+            <input
+                type="number"
+                id="batch-quantity"
+                placeholder="Quantity"
+                min="1"
+                required
+            >
+
+            <label>
+                Expiry Date
+            </label>
+
+            <input
+                type="date"
+                id="batch-expiry"
+                required
+            >
+
+            <button type="submit">
+                Add Batch
+            </button>
+
+        </form>
+
+        <p id="batch-message"></p>
+
+    </div>
+
+</div>
+
+
+<!-- DISPENSE MODAL -->
+
+<div
+    id="dispense-modal"
+    class="modal"
+    style="display:none;"
+>
+
+    <div class="modal-content">
+
+        <span
+            class="close"
+            onclick="closeDispenseForm()"
+        >
+            &times;
+        </span>
+
+        <h2>Dispense Medicine</h2>
+
+        <p id="dispense-medicine-name"></p>
+
+        <form id="dispense-form">
+
+            <input
+                type="number"
+                id="dispense-quantity"
+                placeholder="Quantity to dispense"
+                min="1"
+                required
+            >
+
+            <button type="submit">
+                Dispense
+            </button>
+
+        </form>
+
+        <div id="dispense-result"></div>
+
+    </div>
+
+</div>
     <script src="/static/js/app.js"></script>
 
 </body>

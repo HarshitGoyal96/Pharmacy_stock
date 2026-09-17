@@ -413,3 +413,55 @@ def get_medicines(
             for medicine, sellable_stock in medicines
         ]
     }
+@router.get("/alerts/expiring")
+def get_expiry_alerts(
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=365,
+        description="Show batches expiring within this many days"
+    ),
+    db: Session = Depends(get_db)
+):
+    today = date.today()
+
+    alert_date = today.fromordinal(
+        today.toordinal() + days
+    )
+
+    batches = (
+        db.query(Batch, Medicine)
+        .join(
+            Medicine,
+            Medicine.id == Batch.medicine_id
+        )
+        .filter(
+            Batch.quantity > 0,
+            Batch.expiry_date >= today,
+            Batch.expiry_date <= alert_date
+        )
+        .order_by(
+            Batch.expiry_date.asc()
+        )
+        .all()
+    )
+
+    return {
+        "today": today,
+        "alert_window_days": days,
+        "count": len(batches),
+        "alerts": [
+            {
+                "batch_id": batch.id,
+                "medicine_id": medicine.id,
+                "medicine": medicine.name,
+                "batch_number": batch.batch_number,
+                "quantity": batch.quantity,
+                "expiry_date": batch.expiry_date,
+                "days_until_expiry": (
+                    batch.expiry_date - today
+                ).days
+            }
+            for batch, medicine in batches
+        ]
+    }
