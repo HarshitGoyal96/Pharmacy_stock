@@ -4258,3 +4258,336 @@ We're looking for:
 Don't worry about making it perfect yet.
 
 Once you've checked the dashboard, tell me "Section 11 done". Then we'll tackle the remaining submission-critical pieces: accurate dashboard statistics, environment configuration, database initialization/seed handling, API error handling, final testing, and the required GitHub documentation files.
+One thing to check before calling T1 done
+
+Test this sequence:
+
+Initial stock = 20
+Threshold = 10
+
+Dispense 5
+→ stock = 15
+→ no notification
+
+Dispense 10
+→ stock = 5
+→ REORDER_ALERT
+
+Dispense 2
+→ stock = 3
+→ no second alert
+
+And verify:
+
+GET /outbox
+
+contains the reorder event.
+
+Once this works, tell me "T1 done".
+
+Then we'll enter the final submission phase: clean up the project, make the dashboard statistics accurate, add proper error handling, prepare README.md, REASONING.md, .gitignore, and handle AI_LOGS.md correctly for the evaluator.
+
+def dispense_medicine(
+    medicine_id: int,
+    data: DispenseRequest,
+    db: Session = Depends(get_db)
+):
+
+    # Check that medicine exists
+    medicine = (
+        db.query(Medicine)
+        .filter(Medicine.id == medicine_id)
+        .first()
+    )
+
+    if not medicine:
+        raise HTTPException(
+            status_code=404,
+            detail="Medicine not found"
+        )
+
+    today = date.today()
+    stock_before = sum(
+    batch.quantity
+    for batch in (
+        db.query(Batch)
+        .filter(
+            Batch.medicine_id == medicine_id,
+            Batch.quantity > 0,
+            Batch.expiry_date >= today,
+            Batch.status == "active"
+        )
+        .all()
+    )
+)
+    # Get ONLY valid, non-expired batches.
+    # Earliest expiry comes first.
+    valid_batches = (
+        db.query(Batch)
+        .filter(
+            Batch.medicine_id == medicine_id,
+            Batch.quantity > 0,
+            Batch.expiry_date >= today,
+            Batch.status == "active"
+        )
+        .order_by(Batch.expiry_date.asc(), Batch.id.asc())
+        .all()
+    )
+
+    available_stock = sum(
+        batch.quantity
+        for batch in valid_batches
+    )
+
+    # Do not partially dispense if there is
+    # not enough valid stock.
+    if data.quantity > available_stock:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Insufficient sellable stock",
+                "requested": data.quantity,
+                "available": available_stock
+            }
+        )
+
+    remaining = data.quantity
+    dispensed_from = []
+
+    # Consume earliest-expiring valid batches first.
+    for batch in valid_batches:
+
+        if remaining == 0:
+            break
+
+        quantity_taken = min(
+            batch.quantity,
+            remaining
+        )
+
+        batch.quantity -= quantity_taken
+        remaining -= quantity_taken
+
+        dispensed_from.append({
+            "batch_id": batch.id,
+            "batch_number": batch.batch_number,
+            "expiry_date": batch.expiry_date,
+            "quantity_dispensed": quantity_taken,
+            "remaining_in_batch": batch.quantity
+        })
+
+        # Calculate remaining sellable stock
+remaining_stock = sum(
+    batch.quantity
+    for batch in (
+        db.query(Batch)
+        .filter(
+            Batch.medicine_id == medicine_id,
+            Batch.quantity > 0,
+            Batch.expiry_date >= today,
+            Batch.status == "active"
+        )
+        .all()
+    )
+)
+
+
+# Send reorder notification when stock
+# crosses below the threshold
+        if (
+    stock_before >= medicine.reorder_threshold
+    and remaining_stock < medicine.reorder_threshold
+):
+
+    NotificationService.send_reorder_alert(
+        db=db,
+        medicine=medicine,
+        current_stock=remaining_stock
+    )
+
+
+    db.commit()
+
+    # Commit all changes together.
+
+    return {
+        "message": "Medicine dispensed successfully",
+        "medicine": medicine.name,
+        "quantity_dispensed": data.quantity,
+        "dispensed_from": dispensed_from
+    }
+
+give me updated function
+
+Yes. Your indentation got mixed up around remaining_stock and the notification if. Replace your entire dispense_medicine() function with this clean version:
+
+@router.post("/{medicine_id}/dispense")
+def dispense_medicine(
+    medicine_id: int,
+    data: DispenseRequest,
+    db: Session = Depends(get_db)
+):
+    # Check that medicine exists
+    medicine = (
+        db.query(Medicine)
+        .filter(Medicine.id == medicine_id)
+        .first()
+    )
+
+    if not medicine:
+        raise HTTPException(
+            status_code=404,
+            detail="Medicine not found"
+        )
+
+    today = date.today()
+
+    # Calculate sellable stock BEFORE dispensing
+    stock_before = sum(
+        batch.quantity
+        for batch in (
+            db.query(Batch)
+            .filter(
+                Batch.medicine_id == medicine_id,
+                Batch.quantity > 0,
+                Batch.expiry_date >= today,
+                Batch.status == "active"
+            )
+            .all()
+        )
+    )
+
+    # Get ONLY valid, non-expired, active batches.
+    # Earliest expiry comes first = FEFO
+    valid_batches = (
+        db.query(Batch)
+        .filter(
+            Batch.medicine_id == medicine_id,
+            Batch.quantity > 0,
+            Batch.expiry_date >= today,
+            Batch.status == "active"
+        )
+        .order_by(
+            Batch.expiry_date.asc(),
+            Batch.id.asc()
+        )
+        .all()
+    )
+
+    # Calculate available sellable stock
+    available_stock = sum(
+        batch.quantity
+        for batch in valid_batches
+    )
+
+    # Do not partially dispense if stock is insufficient
+    if data.quantity > available_stock:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Insufficient sellable stock",
+                "requested": data.quantity,
+                "available": available_stock
+            }
+        )
+
+    remaining = data.quantity
+    dispensed_from = []
+
+    # Consume earliest-expiring batches first
+    for batch in valid_batches:
+
+        if remaining == 0:
+            break
+
+        quantity_taken = min(
+            batch.quantity,
+            remaining
+        )
+
+        batch.quantity -= quantity_taken
+        remaining -= quantity_taken
+
+        dispensed_from.append({
+            "batch_id": batch.id,
+            "batch_number": batch.batch_number,
+            "expiry_date": batch.expiry_date,
+            "quantity_dispensed": quantity_taken,
+            "remaining_in_batch": batch.quantity
+        })
+
+    # Calculate remaining sellable stock AFTER dispensing
+    remaining_stock = sum(
+        batch.quantity
+        for batch in (
+            db.query(Batch)
+            .filter(
+                Batch.medicine_id == medicine_id,
+                Batch.quantity > 0,
+                Batch.expiry_date >= today,
+                Batch.status == "active"
+            )
+            .all()
+        )
+    )
+
+    # Send reorder notification only when
+    # stock crosses from >= threshold to < threshold
+    if (
+        stock_before >= medicine.reorder_threshold
+        and remaining_stock < medicine.reorder_threshold
+    ):
+        NotificationService.send_reorder_alert(
+            db=db,
+            medicine=medicine,
+            current_stock=remaining_stock
+        )
+
+    # Commit all changes together
+    db.commit()
+
+    return {
+        "message": "Medicine dispensed successfully",
+        "medicine": medicine.name,
+        "quantity_dispensed": data.quantity,
+        "dispensed_from": dispensed_from,
+        "stock_before": stock_before,
+        "remaining_stock": remaining_stock
+    }
+Also check this import
+
+At the top of medicine_routes.py, make sure you have:
+
+from .notification_service import NotificationService
+
+Your imports should include:
+
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from .database import get_db
+from .models import Medicine, Batch
+from .auth import get_current_user
+from .notification_service import NotificationService
+Then save and restart
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+This version preserves your FEFO behavior and adds the reorder notification cleanly.
+
+Test it with:
+
+Stock = 20
+Threshold = 10
+
+Dispense 5  → Stock = 15 → No alert
+Dispense 10 → Stock = 5  → REORDER_ALERT
+
+Then check:
+
+GET /outbox
+
+You should see the notification. 🔔
