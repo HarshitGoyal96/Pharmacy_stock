@@ -125,7 +125,52 @@
 
 
         <main class="dashboard-container">
+            <!-- DASHBOARD SUMMARY -->
 
+<div class="summary-grid">
+
+    <div class="summary-card">
+
+        <div class="summary-icon">
+            💊
+        </div>
+
+        <div>
+            <p>Total Medicines</p>
+            <h2 id="total-medicines">0</h2>
+        </div>
+
+    </div>
+
+
+    <div class="summary-card">
+
+        <div class="summary-icon">
+            📦
+        </div>
+
+        <div>
+            <p>Sellable Stock</p>
+            <h2 id="total-stock">0</h2>
+        </div>
+
+    </div>
+
+
+    <div class="summary-card warning">
+
+        <div class="summary-icon">
+            🚨
+        </div>
+
+        <div>
+            <p>Expiring Soon</p>
+            <h2 id="expiring-count">0</h2>
+        </div>
+
+    </div>
+
+</div>
 
             <!-- ALERTS -->
 
@@ -180,40 +225,52 @@
 
                 <div class="controls">
 
-                    <input
-                        type="text"
-                        id="search-input"
-                        placeholder="Search medicine..."
-                        oninput="loadMedicines()"
-                    >
+    <div class="search-box">
 
-                    <select
-                        id="sort-by"
-                        onchange="loadMedicines()"
-                    >
-                        <option value="name">
-                            Sort by Name
-                        </option>
+        🔎
 
-                        <option value="stock">
-                            Sort by Stock
-                        </option>
-                    </select>
+        <input
+            type="text"
+            id="search-input"
+            placeholder="Search medicine..."
+            oninput="loadMedicines()"
+        >
 
-                    <select
-                        id="sort-order"
-                        onchange="loadMedicines()"
-                    >
-                        <option value="asc">
-                            Ascending
-                        </option>
+    </div>
 
-                        <option value="desc">
-                            Descending
-                        </option>
-                    </select>
 
-                </div>
+    <select
+        id="sort-by"
+        onchange="loadMedicines()"
+    >
+
+        <option value="name">
+            Sort by Name
+        </option>
+
+        <option value="stock">
+            Sort by Stock
+        </option>
+
+    </select>
+
+
+    <select
+        id="sort-order"
+        onchange="loadMedicines()"
+    >
+
+        <option value="asc">
+            Ascending
+        </option>
+
+        <option value="desc">
+            Descending
+        </option>
+
+    </select>
+
+</div>
 
 
                 <!-- MEDICINE TABLE -->

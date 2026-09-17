@@ -42,11 +42,7 @@ class User(Base):
 class Medicine(Base):
     __tablename__ = "medicines"
 
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
+    id = Column(Integer, primary_key=True, index=True)
 
     name = Column(
         String(150),
@@ -64,6 +60,12 @@ class Medicine(Base):
         nullable=True
     )
 
+    reorder_threshold = Column(
+        Integer,
+        nullable=False,
+        default=10
+    )
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow
@@ -75,15 +77,10 @@ class Medicine(Base):
         cascade="all, delete-orphan"
     )
 
-
 class Batch(Base):
     __tablename__ = "batches"
 
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
+    id = Column(Integer, primary_key=True, index=True)
 
     medicine_id = Column(
         Integer,
@@ -110,6 +107,18 @@ class Batch(Base):
         index=True
     )
 
+    status = Column(
+        String(20),
+        nullable=False,
+        default="active"
+    )
+
+    flagged_for_expiry = Column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow
@@ -118,4 +127,33 @@ class Batch(Base):
     medicine = relationship(
         "Medicine",
         back_populates="batches"
+    )
+class OutboxMessage(Base):
+    __tablename__ = "outbox"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    event_type = Column(
+        String(50),
+        nullable=False
+    )
+
+    medicine_id = Column(
+        Integer,
+        nullable=False,
+        index=True
+    )
+
+    message = Column(
+        String(500),
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
     )

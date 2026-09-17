@@ -3389,3 +3389,872 @@ Does the medicine table show your existing Paracetamol?
 Does Add Medicine work?
 
 Then we'll continue with the next section. 🚀
+
+Excellent. ✅ Section 9: Batch Management + FEFO Dispensing is complete.
+
+Now we should make the application more secure before final polish.
+
+Section 10: Protect Medicine APIs with JWT 🔐
+
+Currently, registration/login works and generates a JWT, but someone could still directly call:
+
+POST /api/medicines/
+POST /api/medicines/{id}/batches
+POST /api/medicines/{id}/dispense
+GET /api/medicines/
+
+without logging in.
+
+We'll fix that now.
+
+Step 10.1: Create the authentication dependency
+
+Open:
+
+app/auth.py
+
+Replace it with:
+
+from datetime import datetime, timedelta, timezone
+
+import bcrypt
+from jose import JWTError, jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+
+from .database import get_db
+from .models import User
+
+
+SECRET_KEY = "pharmacy-fefo-secret-key-change-this"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+security = HTTPBearer()
+
+
+def hash_password(password: str) -> str:
+    password_bytes = password.encode("utf-8")
+
+    hashed = bcrypt.hashpw(
+        password_bytes,
+        bcrypt.gensalt()
+    )
+
+    return hashed.decode("utf-8")
+
+
+def verify_password(
+    plain_password: str,
+    hashed_password: str
+) -> bool:
+
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8")
+    )
+
+
+def create_access_token(user_id: int) -> str:
+
+    expire = (
+        datetime.now(timezone.utc)
+        + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
+    payload = {
+        "sub": str(user_id),
+        "exp": expire
+    }
+
+    return jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+
+    token = credentials.credentials
+
+    try:
+
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        user_id = payload.get("sub")
+
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
+
+    except JWTError:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token"
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.id == int(user_id))
+        .first()
+    )
+
+    if user is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+
+    return user
+Step 10.2: Protect the medicine router
+
+Open:
+
+app/medicine_routes.py
+
+Change this:
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+to:
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+That line actually stays the same.
+
+Then add:
+
+from .auth import get_current_user
+
+So your imports include:
+
+from .database import get_db
+from .models import Medicine, Batch
+from .auth import get_current_user
+
+Now change:
+
+router = APIRouter(
+    prefix="/api/medicines",
+    tags=["Medicines"]
+)
+
+to:
+
+router = APIRouter(
+    prefix="/api/medicines",
+    tags=["Medicines"],
+    dependencies=[Depends(get_current_user)]
+)
+
+That's it.
+
+Because we're putting the dependency on the router, all medicine endpoints are now protected:
+
+GET    /api/medicines/
+POST   /api/medicines/
+GET    /api/medicines/{id}/batches
+POST   /api/medicines/{id}/batches
+GET    /api/medicines/{id}/stock
+POST   /api/medicines/{id}/dispense
+GET    /api/medicines/alerts/expiring
+
+Authentication endpoints remain public:
+
+POST /api/auth/register
+POST /api/auth/login
+
+That's exactly what we want.
+
+Step 10.3: Update frontend requests
+
+Now the frontend needs to send the JWT.
+
+Open:
+
+app/static/js/app.js
+
+At the top, add:
+
+function getAuthHeaders() {
+
+    const token =
+        localStorage.getItem("access_token");
+
+    return {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+    };
+}
+
+Then update your medicine API requests.
+
+loadMedicines()
+
+Change:
+
+const response = await fetch(url);
+
+to:
+
+const response = await fetch(
+    url,
+    {
+        headers: getAuthHeaders()
+    }
+);
+loadAlerts()
+
+Change:
+
+const response =
+    await fetch("/api/medicines/alerts/expiring?days=30");
+
+to:
+
+const response =
+    await fetch(
+        "/api/medicines/alerts/expiring?days=30",
+        {
+            headers: getAuthHeaders()
+        }
+    );
+viewBatches()
+
+Change:
+
+const response =
+    await fetch(
+        `/api/medicines/${medicineId}/batches`
+    );
+
+to:
+
+const response =
+    await fetch(
+        `/api/medicines/${medicineId}/batches`,
+        {
+            headers: getAuthHeaders()
+        }
+    );
+Add Medicine
+
+Find:
+
+headers: {
+    "Content-Type": "application/json"
+},
+
+Replace it with:
+
+headers: getAuthHeaders(),
+Add Batch
+
+Again replace:
+
+headers: {
+    "Content-Type": "application/json"
+},
+
+with:
+
+headers: getAuthHeaders(),
+Dispense
+
+Do the same:
+
+headers: getAuthHeaders(),
+Step 10.4: Test authentication
+
+Restart the server if necessary:
+
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+Then:
+
+Refresh the browser.
+Login.
+Check that the dashboard still loads.
+Search medicines.
+Add a medicine.
+Add a batch.
+View batches.
+Dispense.
+
+Everything should still work.
+
+Extra security test
+
+Open Swagger:
+
+/docs
+
+Try:
+
+GET /api/medicines/
+
+without authorization.
+
+It should now return:
+
+401 Unauthorized
+
+Then use the frontend after login, where the JWT is automatically supplied.
+
+Why we're doing this
+
+Our application now has a proper flow:
+
+                ┌──────────────┐
+                │   Register   │
+                └──────┬───────┘
+                       ↓
+                ┌──────────────┐
+                │    Login     │
+                └──────┬───────┘
+                       ↓
+                  JWT Token
+                       ↓
+             ┌──────────────────┐
+             │   Dashboard      │
+             └────────┬─────────┘
+                      ↓
+          ┌───────────────────────┐
+          │ Authenticated APIs    │
+          └───────────┬───────────┘
+                      ↓
+       ┌──────────────┼──────────────┐
+       ↓              ↓              ↓
+   Medicines       Batches        Dispensing
+       ↓              ↓              ↓
+    Search          Stock          FEFO
+       ↓              ↓              ↓
+   Pagination      Expiry       No expired
+    Sorting         Alerts       dispensing
+Section 10 completion criteria
+
+You should have:
+
+✅ Unauthenticated medicine API → 401
+✅ Logged-in dashboard → works
+✅ Search → works
+✅ Add medicine → works
+✅ Add batch → works
+✅ View batches → works
+✅ Dispense → works
+✅ FEFO → still works
+✅ Expiry alerts → still work
+
+Once these pass, tell me "Section 10 done".
+
+Then we'll move into the final UI/polish section, followed by the required README.md, REASONING.md, AI_LOGS.md, .gitignore, final testing, and GitHub submission. 🚀
+
+Now lets move to the next section
+
+Absolutely. Since Section 10 is done, let's move to the next major section.
+
+Section 11: Professional Dashboard UI 🎨💊
+
+The functionality is already working. Now we'll make the application look like a real pharmacy inventory system rather than an API project with a browser attached.
+
+Section 11 will add
+📊 Dashboard summary cards
+💊 Total medicines
+📦 Total sellable stock
+🚨 Expiring batches count
+🔎 Cleaner search/filter area
+📋 Better medicine cards/table
+🟢🟠🔴 Stock/expiry indicators
+📱 Better responsive layout
+✨ Cleaner buttons and spacing
+
+We won't change your backend in this section.
+
+Step 11.1: Update the dashboard HTML
+
+Open:
+
+app/templates/index.html
+
+Find:
+
+<main class="dashboard-container">
+
+Immediately after it, add:
+
+<!-- DASHBOARD SUMMARY -->
+
+<div class="summary-grid">
+
+    <div class="summary-card">
+
+        <div class="summary-icon">
+            💊
+        </div>
+
+        <div>
+            <p>Total Medicines</p>
+            <h2 id="total-medicines">0</h2>
+        </div>
+
+    </div>
+
+
+    <div class="summary-card">
+
+        <div class="summary-icon">
+            📦
+        </div>
+
+        <div>
+            <p>Sellable Stock</p>
+            <h2 id="total-stock">0</h2>
+        </div>
+
+    </div>
+
+
+    <div class="summary-card warning">
+
+        <div class="summary-icon">
+            🚨
+        </div>
+
+        <div>
+            <p>Expiring Soon</p>
+            <h2 id="expiring-count">0</h2>
+        </div>
+
+    </div>
+
+</div>
+
+So the beginning of your main section becomes:
+
+<main class="dashboard-container">
+
+    <!-- DASHBOARD SUMMARY -->
+
+    <div class="summary-grid">
+
+        ...
+        
+    </div>
+
+    <!-- ALERTS -->
+
+    <div class="section-card alert-card">
+Step 11.2: Improve the medicine controls
+
+Find this:
+
+<div class="controls">
+
+Replace the entire controls block with:
+
+<div class="controls">
+
+    <div class="search-box">
+
+        🔎
+
+        <input
+            type="text"
+            id="search-input"
+            placeholder="Search medicine..."
+            oninput="loadMedicines()"
+        >
+
+    </div>
+
+
+    <select
+        id="sort-by"
+        onchange="loadMedicines()"
+    >
+
+        <option value="name">
+            Sort by Name
+        </option>
+
+        <option value="stock">
+            Sort by Stock
+        </option>
+
+    </select>
+
+
+    <select
+        id="sort-order"
+        onchange="loadMedicines()"
+    >
+
+        <option value="asc">
+            Ascending
+        </option>
+
+        <option value="desc">
+            Descending
+        </option>
+
+    </select>
+
+</div>
+Step 11.3: Add dashboard CSS
+
+Open:
+
+app/static/css/style.css
+
+Add this at the bottom:
+
+/* =========================
+   SUMMARY CARDS
+========================= */
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.summary-card {
+    background: white;
+    padding: 22px;
+    border-radius: 14px;
+
+    display: flex;
+    align-items: center;
+    gap: 18px;
+
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+
+    border-left: 5px solid #2563eb;
+}
+
+.summary-card.warning {
+    border-left-color: #f59e0b;
+}
+
+.summary-icon {
+    width: 50px;
+    height: 50px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #eff6ff;
+
+    border-radius: 12px;
+
+    font-size: 25px;
+}
+
+.summary-card p {
+    color: #6b7280;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.summary-card h2 {
+    font-size: 26px;
+    color: #1f2937;
+}
+
+
+/* =========================
+   SEARCH BOX
+========================= */
+
+.search-box {
+    display: flex;
+    align-items: center;
+
+    background: white;
+
+    border: 1px solid #d1d5db;
+
+    border-radius: 8px;
+
+    padding-left: 12px;
+
+    overflow: hidden;
+}
+
+.search-box input {
+    border: none;
+    box-shadow: none;
+}
+
+.search-box input:focus {
+    border: none;
+    box-shadow: none;
+}
+
+
+/* =========================
+   TABLE ACTIONS
+========================= */
+
+.action-btn {
+    margin: 3px;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+}
+
+
+/* =========================
+   EMPTY STATE
+========================= */
+
+.empty-state {
+    text-align: center;
+    padding: 35px;
+    color: #6b7280;
+}
+
+.empty-state-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+
+/* =========================
+   MOBILE DASHBOARD
+========================= */
+
+@media (max-width: 800px) {
+
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .navbar button {
+        align-self: flex-end;
+    }
+
+}
+Step 11.4: Update the JavaScript summary
+
+Open:
+
+app/static/js/app.js
+
+Inside loadMedicines(), after:
+
+totalPages = data.total_pages || 1;
+
+add:
+
+document.getElementById(
+    "total-medicines"
+).textContent = data.total;
+
+Then we need to calculate total sellable stock.
+
+Add:
+
+const totalStock = data.medicines.reduce(
+    (total, medicine) =>
+        total + medicine.sellable_stock,
+    0
+);
+
+document.getElementById(
+    "total-stock"
+).textContent = totalStock;
+Important
+
+Because pagination only returns the current page, this stock number represents the stock on the current page, not the entire pharmacy.
+
+So don't worry if it looks different when you change pages. We'll make this globally accurate in a later API improvement.
+
+Step 11.5: Update expiry count
+
+Inside loadAlerts(), after:
+
+const data = await response.json();
+
+add:
+
+document.getElementById(
+    "expiring-count"
+).textContent = data.count;
+Step 11.6: Improve empty medicine display
+
+Inside loadMedicines(), find:
+
+if (data.medicines.length === 0) {
+
+    table.innerHTML = `
+        <tr>
+            <td colspan="6" style="text-align:center;">
+                No medicines found
+            </td>
+        </tr>
+    `;
+
+}
+
+Replace it with:
+
+if (data.medicines.length === 0) {
+
+    table.innerHTML = `
+        <tr>
+            <td colspan="6">
+
+                <div class="empty-state">
+
+                    <div class="empty-state-icon">
+                        💊
+                    </div>
+
+                    <strong>
+                        No medicines found
+                    </strong>
+
+                    <p>
+                        Try another search or add a new medicine.
+                    </p>
+
+                </div>
+
+            </td>
+        </tr>
+    `;
+
+}
+Step 11.7: Add stock status
+
+Find:
+
+<td class="stock">
+    ${medicine.sellable_stock}
+</td>
+
+Replace it with:
+
+<td>
+
+    <span
+        class="stock-badge ${
+            medicine.sellable_stock > 0
+                ? "in-stock"
+                : "out-stock"
+        }"
+    >
+
+        ${
+            medicine.sellable_stock > 0
+                ? "● "
+                : "● "
+        }
+
+        ${medicine.sellable_stock}
+
+    </span>
+
+</td>
+
+Then add to style.css:
+
+/* =========================
+   STOCK BADGES
+========================= */
+
+.stock-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.in-stock {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.out-stock {
+    background: #fee2e2;
+    color: #991b1b;
+}
+Step 11.8: Refresh
+
+Save all files.
+
+Then:
+
+Ctrl + Shift + R
+
+Login again if necessary.
+
+You should now have something closer to:
+
+┌─────────────────────────────────────────────────────────┐
+│ 💊 Pharmacy FEFO Manager                   Welcome       │
+│                                              [Logout]    │
+└─────────────────────────────────────────────────────────┘
+
+   ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+   │ 💊           │ │ 📦           │ │ 🚨           │
+   │ Medicines    │ │ Stock        │ │ Expiring     │
+   │     4        │ │     145      │ │     2        │
+   └──────────────┘ └──────────────┘ └──────────────┘
+
+
+   🚨 Expiry Alerts
+   ─────────────────────────────────────────────────────
+
+
+   💊 Medicines                         [+ Add Medicine]
+
+   🔎 Search...       Sort Name ▼       Ascending ▼
+
+   ┌────────────────────────────────────────────────────┐
+   │ Medicine │ Generic │ Manufacturer │ Stock │ Actions│
+   ├────────────────────────────────────────────────────┤
+   │ Paracetamol       │ ... │ ... │ 🟢 20 │ ...       │
+   │ Ibuprofen         │ ... │ ... │ 🟢 40 │ ...       │
+   └────────────────────────────────────────────────────┘
+Section 11 completion
+
+We're looking for:
+
+✅ Summary cards visible
+✅ Search still works
+✅ Sorting still works
+✅ Medicine table still works
+✅ Stock badges visible
+✅ Expiry count visible
+✅ Add Medicine still works
+✅ Batch operations still work
+✅ Dispensing still works
+
+Don't worry about making it perfect yet.
+
+Once you've checked the dashboard, tell me "Section 11 done". Then we'll tackle the remaining submission-critical pieces: accurate dashboard statistics, environment configuration, database initialization/seed handling, API error handling, final testing, and the required GitHub documentation files.

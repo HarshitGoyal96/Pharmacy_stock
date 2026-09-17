@@ -1,6 +1,18 @@
 // ================================
 // AUTH TABS
 // ================================
+function getAuthHeaders() {
+
+    const token =
+        localStorage.getItem("access_token");
+
+    return {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+    };
+}
+
+
 
 function showLogin() {
     document.getElementById("login-form").style.display = "flex";
@@ -208,7 +220,12 @@ async function loadMedicines() {
 
     try {
 
-        const response = await fetch(url);
+        const response = await fetch(
+                 url,
+                {
+                headers: getAuthHeaders()
+                     }
+                );
 
         const data = await response.json();
 
@@ -218,6 +235,18 @@ async function loadMedicines() {
         }
 
         totalPages = data.total_pages || 1;
+        document.getElementById(
+        "total-medicines"
+        ).textContent = data.total;
+        const totalStock = data.medicines.reduce(
+        (total, medicine) =>
+        total + medicine.sellable_stock,
+    0
+        );
+
+        document.getElementById(
+         "total-stock"
+        ).textContent = totalStock;
 
         const table =
             document.getElementById("medicine-table");
@@ -226,15 +255,31 @@ async function loadMedicines() {
 
         if (data.medicines.length === 0) {
 
-            table.innerHTML = `
-                <tr>
-                    <td colspan="6" style="text-align:center;">
-                        No medicines found
-                    </td>
-                </tr>
-            `;
+        table.innerHTML = `
+        <tr>
+            <td colspan="6">
 
-        } else {
+                <div class="empty-state">
+
+                    <div class="empty-state-icon">
+                        💊
+                    </div>
+
+                    <strong>
+                        No medicines found
+                    </strong>
+
+                    <p>
+                        Try another search or add a new medicine.
+                    </p>
+
+                </div>
+
+            </td>
+        </tr>
+    `;
+
+} else {
 
             data.medicines.forEach(medicine => {
 
@@ -255,9 +300,27 @@ async function loadMedicines() {
                         ${medicine.manufacturer || "-"}
                     </td>
 
-                    <td class="stock">
-                        ${medicine.sellable_stock}
-                    </td>
+                    <td>
+
+    <span
+        class="stock-badge ${
+            medicine.sellable_stock > 0
+                ? "in-stock"
+                : "out-stock"
+        }"
+    >
+
+        ${
+            medicine.sellable_stock > 0
+                ? "● "
+                : "● "
+        }
+
+        ${medicine.sellable_stock}
+
+    </span>
+
+</td>
 
                     <td>
 
@@ -341,10 +404,16 @@ async function loadAlerts() {
     try {
 
         const response =
-            await fetch("/api/medicines/alerts/expiring?days=30");
+            await fetch("/api/medicines/alerts/expiring?days=30",
+                {
+            headers: getAuthHeaders()
+        }
+            );
 
         const data = await response.json();
-
+        document.getElementById(
+        "expiring-count"
+        ).textContent = data.count;
         if (!response.ok) {
             container.textContent = "Unable to load alerts.";
             return;
@@ -451,9 +520,7 @@ document
 
                 method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: getAuthHeaders(),
 
                 body: JSON.stringify({
                     name: name,
@@ -512,7 +579,10 @@ async function viewBatches(medicineId) {
 
         const response =
             await fetch(
-                `/api/medicines/${medicineId}/batches`
+                `/api/medicines/${medicineId}/batches`,
+                {
+            headers: getAuthHeaders()
+        }
             );
 
         const data = await response.json();
@@ -648,9 +718,7 @@ document
                 {
                     method: "POST",
 
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: getAuthHeaders(),
 
                     body: JSON.stringify({
                         batch_number: batchNumber,
@@ -755,9 +823,7 @@ document
                 {
                     method: "POST",
 
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: getAuthHeaders(),
 
                     body: JSON.stringify({
                         quantity: quantity

@@ -1,14 +1,15 @@
 from pathlib import Path
+from .automation_routes import router as automation_router
+from .import_routes import router as import_router
 from .auth_routes import router as auth_router
 from fastapi import FastAPI, Request
 from .medicine_routes import router as medicine_router
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-
+from .notification_routes import router as notification_router
 from .database import Base, engine
 from . import models
-
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -25,6 +26,9 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(medicine_router)
+app.include_router(automation_router)
+app.include_router(import_router)
+app.include_router(notification_router)
 
 # Templates
 templates = Jinja2Templates(
