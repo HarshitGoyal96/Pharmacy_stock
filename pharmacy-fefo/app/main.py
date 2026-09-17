@@ -1,6 +1,7 @@
 from pathlib import Path
 from .auth_routes import router as auth_router
 from fastapi import FastAPI, Request
+from .medicine_routes import router as medicine_router
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,6 +24,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(medicine_router)
 
 # Templates
 templates = Jinja2Templates(
