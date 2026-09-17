@@ -1,5 +1,5 @@
 from pathlib import Path
-
+from .auth_routes import router as auth_router
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,12 +22,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
+app.include_router(auth_router)
 
 # Templates
 templates = Jinja2Templates(
     directory=BASE_DIR / "templates"
 )
 
+app.mount(
+    "/static",
+    StaticFiles(directory=BASE_DIR / "static"),
+    name="static"
+)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
